@@ -38,3 +38,28 @@ const queryGithub = options => new Promise((resolve, reject) => {
 
   logger.info({queryResult}, 'got query result');
 })();
+
+/*
+{
+  repository(owner: "department-of-veterans-affairs", name: "caseflow") {
+    issues(last: 5, states: CLOSED) {
+      edges {
+        node {
+          title
+          timeline(last: 2) {
+            edges {
+              node {
+                ... on ClosedEvent {
+                  actor {
+                    login
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+*/
