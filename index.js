@@ -38,6 +38,7 @@ const query = graphQl => queryGithub({
             }
             edges {
               node {
+                updatedAt
                 title
                 resourcePath
                 comments(first: 100) {
@@ -55,10 +56,23 @@ const query = graphQl => queryGithub({
       }
     `);
 
+    // This may be cutting out a few issues erroneously by stopping a few days early,
+    // but overall I think it's close enough.
+
     const issuesAfterDateCutoff = _.takeWhile(
       queryResult[0].data.repository.issues.edges,
       edge => moment(edge.node.updatedAt).isAfter(moment('2017-05-01'))
     );
+
+    const oldestIssueTime = _(queryResult[0].data.repository.issues.edges)
+      .map(edge => moment(edge.node.updatedAt).unix())
+      .max();
+
+    logger.debug({
+      // eslint-disable-next-line no-magic-numbers
+      oldestIssueTime: moment(oldestIssueTime * 1000),
+      currentBatchSize: issuesAfterDateCutoff.length
+    }, 'Oldest issue time from current batch');
 
     foundIssues.push(...issuesAfterDateCutoff);
 
@@ -67,22 +81,22 @@ const query = graphQl => queryGithub({
     }
 
     startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
-    logger.info({startCursor}, 'Setting start cursor');
+    logger.debug({startCursor}, 'Setting start cursor');
   }
 
-  logger.info({foundIssuesCount: foundIssues.length}, 'Got issues');
+  logger.info({foundIssuesCount: foundIssues.length, sampleIssue: foundIssues[0]}, 'Got issues');
 
   const commentsPassedForPerson = login => {
     const issues = _.filter(
-      queryResult[0].data.repository.issues.edges, 
-      issueNode => _.some(
-        issueNode.node.comments.nodes, 
+      foundIssues, 
+      issue => _.some(
+        issue.node.comments.nodes, 
         comment => _.includes(comment.bodyText, 'PASSED') && comment.author.login === login
       )
     );
     
     return {
-      issues: _.map(issues, issueNode => `https://github.com/${issueNode.node.resourcePath}`),
+      issues: _.map(issues, issue => `https://github.com${issue.node.resourcePath}`),
       count: issues.length
     };
   };

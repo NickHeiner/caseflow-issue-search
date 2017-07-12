@@ -8,7 +8,7 @@ const bunyan = require('bunyan'),
 const logger = module.exports = bunyan.createLogger({
   name: require('./package').name,
   stream: bunyanFormat,
-  level: process.env.LOGLEVEL
+  level: 'debug'
 });
 
 async function logStep(logOpts, fn) {
