@@ -86,6 +86,8 @@ const query = graphQl => queryGithub({
 
   logger.info({foundIssuesCount: foundIssues.length, sampleIssue: foundIssues[0]}, 'Got issues');
 
+  const githubUrlOfIssues = issues => _.map(issues, issue => `https://github.com${issue.node.resourcePath}`);
+
   const commentsPassedForPerson = login => {
     const issues = _.filter(
       foundIssues, 
@@ -96,7 +98,7 @@ const query = graphQl => queryGithub({
     );
     
     return {
-      issues: _.map(issues, issue => `https://github.com${issue.node.resourcePath}`),
+      issues: githubUrlOfIssues(issues),
       count: issues.length
     };
   };
@@ -107,58 +109,17 @@ const query = graphQl => queryGithub({
   };
 
   logger.info({issuesPassedPerPerson});
+
+  const allIssuesPassed = _(issuesPassedPerPerson)
+    .values()
+    .map('issues')
+    .flatten()
+    .value();
+
+  const issuesPassedByNoOne = _.difference(githubUrlOfIssues(foundIssues), allIssuesPassed);
+
+  logger.info({
+    count: issuesPassedByNoOne.length,
+    issues: issuesPassedByNoOne
+  }, 'Issues passed by no one');
 })();
-
-/*
-{
-  repository(owner: "department-of-veterans-affairs", name: "caseflow") {
-    issues(last: 5, states: CLOSED) {
-      edges {
-        node {
-          title
-          timeline(last: 2) {
-            edges {
-              node {
-                ... on ClosedEvent {
-                  actor {
-                    login
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-*/
-
-/*
-{
-  repository(owner: "department-of-veterans-affairs", name: "caseflow") {
-    issues(last: 5, states: CLOSED, orderBy: {
-      field: UPDATED_AT,
-      direction: ASC
-    }) {
-      edges {
-        node {
-          title
-          resourcePath
-          timeline(last: 2) {
-            edges {
-              node {
-                ... on ClosedEvent {
-                  actor {
-                    login
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-*/
