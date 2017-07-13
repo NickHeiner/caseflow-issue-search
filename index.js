@@ -61,7 +61,7 @@ const query = graphQl => queryGithub({
 
     const issuesAfterDateCutoff = _.takeWhile(
       queryResult[0].data.repository.issues.edges,
-      edge => moment(edge.node.updatedAt).isAfter(moment('2017-05-01'))
+      edge => moment(edge.node.updatedAt).isAfter(moment('2017-01-01'))
     );
 
     const oldestIssueTime = _(queryResult[0].data.repository.issues.edges)
@@ -122,4 +122,16 @@ const query = graphQl => queryGithub({
     count: issuesPassedByNoOne.length,
     issues: issuesPassedByNoOne
   }, 'Issues passed by no one');
+
+  const getStringSummaryOfIssues = issueUrls => issueUrls.join('\n');
+
+  // eslint-disable-next-line no-console
+  console.log(`
+Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
+${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
+Issues Approved by Alexis (count: ${issuesPassedPerPerson.alexis.count})
+${getStringSummaryOfIssues(issuesPassedPerPerson.alexis.issues)}
+Issues Approved by neither (count: ${issuesPassedByNoOne.length})
+${getStringSummaryOfIssues(allIssuesPassed)}
+  `);
 })();
