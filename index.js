@@ -26,12 +26,12 @@ const query = graphQl => queryGithub({
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const queryResult = await query(`
+    const graphQlQuery = `
       {
         repository(owner: "department-of-veterans-affairs", name: "caseflow") {
-          issues(last: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null} orderBy: {
+          issues(first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
             field: UPDATED_AT
-            direction: ASC
+            direction: DESC
           }) {
             pageInfo {
               startCursor
@@ -54,21 +54,27 @@ const query = graphQl => queryGithub({
           }
         }
       }
-    `);
+    `;
+    logger.debug({graphQlQuery}, 'Making query');
+    const queryResult = await query(graphQlQuery);
 
     // This may be cutting out a few issues erroneously by stopping a few days early,
     // but overall I think it's close enough.
 
+    const issues = queryResult[0].data.repository.issues.edges;
+    const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
     const issuesAfterDateCutoff = _.takeWhile(
-      queryResult[0].data.repository.issues.edges,
-      edge => moment(edge.node.updatedAt).isAfter(moment('2017-01-01'))
+      issues,
+      edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
     );
 
-    const oldestIssueTime = _(queryResult[0].data.repository.issues.edges)
+    const oldestIssueTime = _(issues)
       .map(edge => moment(edge.node.updatedAt).unix())
       .max();
 
     logger.debug({
+      dateCutoff,
+      rawIssuesCount: issues.length,
       // eslint-disable-next-line no-magic-numbers
       oldestIssueTime: moment(oldestIssueTime * 1000),
       currentBatchSize: issuesAfterDateCutoff.length
@@ -76,7 +82,7 @@ const query = graphQl => queryGithub({
 
     foundIssues.push(...issuesAfterDateCutoff);
 
-    if (issuesAfterDateCutoff.length < queryResult[0].data.repository.issues.edges.length) {
+    if (issuesAfterDateCutoff.length < issues.length) {
       break;
     }
 
