@@ -142,7 +142,7 @@ Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues Approved by Alexis (count: ${issuesPassedPerPerson.alexis.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.alexis.issues)}
-Issues Approved by neither (count: ${issuesPassedByNoOne.length})
+Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
   `);
 })();
