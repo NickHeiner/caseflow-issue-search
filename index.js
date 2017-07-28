@@ -138,6 +138,6 @@ ${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues Approved by Alexis (count: ${issuesPassedPerPerson.alexis.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.alexis.issues)}
 Issues Approved by neither (count: ${issuesPassedByNoOne.length})
-${getStringSummaryOfIssues(allIssuesPassed)}
+${getStringSummaryOfIssues(issuesPassedByNoOne)}
   `);
 })();
