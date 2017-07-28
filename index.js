@@ -21,31 +21,33 @@ const query = graphQl => queryGithub({
 });
 
 (async() => {
-  const foundIssues = [];
-  let startCursor = null;
+  const getIssuesForRepo = async repo => {
+    const foundIssues = [];
+    let startCursor = null;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const graphQlQuery = `
-      {
-        repository(owner: "department-of-veterans-affairs", name: "caseflow") {
-          issues(first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
-            field: UPDATED_AT
-            direction: DESC
-          }) {
-            pageInfo {
-              startCursor
-            }
-            edges {
-              node {
-                updatedAt
-                title
-                resourcePath
-                comments(first: 100) {
-                  nodes {
-                    bodyText
-                    author {
-                      login
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const graphQlQuery = `
+        {
+          repository(owner: "department-of-veterans-affairs", name: "${repo}") {
+            issues(first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
+              field: UPDATED_AT
+              direction: DESC
+            }) {
+              pageInfo {
+                startCursor
+              }
+              edges {
+                node {
+                  updatedAt
+                  title
+                  resourcePath
+                  comments(first: 100) {
+                    nodes {
+                      bodyText
+                      author {
+                        login
+                      }
                     }
                   }
                 }
@@ -53,42 +55,45 @@ const query = graphQl => queryGithub({
             }
           }
         }
+      `;
+      logger.debug({graphQlQuery}, 'Making query');
+      const queryResult = await query(graphQlQuery);
+
+      // This may be cutting out a few issues erroneously by stopping a few days early,
+      // but overall I think it's close enough.
+
+      const issues = queryResult[0].data.repository.issues.edges;
+      const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
+      const issuesAfterDateCutoff = _.takeWhile(
+        issues,
+        edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
+      );
+
+      const oldestIssueTime = _(issues)
+        .map(edge => moment(edge.node.updatedAt).unix())
+        .max();
+
+      logger.debug({
+        dateCutoff,
+        rawIssuesCount: issues.length,
+        // eslint-disable-next-line no-magic-numbers
+        oldestIssueTime: moment(oldestIssueTime * 1000),
+        currentBatchSize: issuesAfterDateCutoff.length
+      }, 'Oldest issue time from current batch');
+
+      foundIssues.push(...issuesAfterDateCutoff);
+
+      if (issuesAfterDateCutoff.length < issues.length) {
+        break;
       }
-    `;
-    logger.debug({graphQlQuery}, 'Making query');
-    const queryResult = await query(graphQlQuery);
 
-    // This may be cutting out a few issues erroneously by stopping a few days early,
-    // but overall I think it's close enough.
-
-    const issues = queryResult[0].data.repository.issues.edges;
-    const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
-    const issuesAfterDateCutoff = _.takeWhile(
-      issues,
-      edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
-    );
-
-    const oldestIssueTime = _(issues)
-      .map(edge => moment(edge.node.updatedAt).unix())
-      .max();
-
-    logger.debug({
-      dateCutoff,
-      rawIssuesCount: issues.length,
-      // eslint-disable-next-line no-magic-numbers
-      oldestIssueTime: moment(oldestIssueTime * 1000),
-      currentBatchSize: issuesAfterDateCutoff.length
-    }, 'Oldest issue time from current batch');
-
-    foundIssues.push(...issuesAfterDateCutoff);
-
-    if (issuesAfterDateCutoff.length < issues.length) {
-      break;
+      startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
+      logger.debug({startCursor}, 'Setting start cursor');
     }
+    return foundIssues;
+  };
 
-    startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
-    logger.debug({startCursor}, 'Setting start cursor');
-  }
+  const foundIssues = _.flatten(await Promise.all(['caseflow', 'caseflow-efolder'].map(getIssuesForRepo)));
 
   logger.info({foundIssuesCount: foundIssues.length, sampleIssue: foundIssues[0]}, 'Got issues');
 
