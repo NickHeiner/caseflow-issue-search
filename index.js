@@ -30,10 +30,12 @@ const query = graphQl => queryGithub({
       const graphQlQuery = `
         {
           repository(owner: "department-of-veterans-affairs", name: "${repo}") {
-            issues(first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
-              field: UPDATED_AT
-              direction: DESC
-            }) {
+            validatedIssues: issues(
+              first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
+                field: UPDATED_AT
+                direction: DESC
+              }
+            ) {
               pageInfo {
                 startCursor
               }
@@ -62,7 +64,7 @@ const query = graphQl => queryGithub({
       // This may be cutting out a few issues erroneously by stopping a few days early,
       // but overall I think it's close enough.
 
-      const issues = queryResult[0].data.repository.issues.edges;
+      const issues = queryResult[0].data.repository.validatedIssues.edges;
       const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
       const issuesAfterDateCutoff = _.takeWhile(
         issues,
@@ -87,7 +89,7 @@ const query = graphQl => queryGithub({
         break;
       }
 
-      startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
+      startCursor = queryResult[0].data.repository.validatedIssues.pageInfo.startCursor;
       logger.debug({startCursor}, 'Setting start cursor');
     }
     return foundIssues;
