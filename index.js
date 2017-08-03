@@ -23,6 +23,7 @@ const query = graphQl => queryGithub({
 (async() => {
   const getIssuesForRepo = async repo => {
     const getIssuesUntilTime = async issueQueryFn => {
+      const queryLogger = logger.child({repo});
       const foundIssues = [];
       let startCursor = null;
 
@@ -35,9 +36,9 @@ const query = graphQl => queryGithub({
             }
           }
         `;
-        logger.debug({graphQlQuery}, 'Making query');
+        queryLogger.debug({graphQlQuery}, 'Making query');
         const queryResult = await query(graphQlQuery);
-        logger.trace({resultData: queryResult[0].data});
+        queryLogger.trace({resultData: queryResult[0].data});
 
         // This may be cutting out a few issues erroneously by stopping a few days early,
         // but overall I think it's close enough.
@@ -49,15 +50,16 @@ const query = graphQl => queryGithub({
           edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
         );
 
-        const oldestIssueTime = _(issues)
-          .map(edge => moment(edge.node.updatedAt).unix())
-          .max();
+        const unixTimestampOfIssue = edge => moment(edge.node.updatedAt).unix();
+        const oldestIssue = _.maxBy(issues, unixTimestampOfIssue);
+        const oldestIssueTime = unixTimestampOfIssue(oldestIssue);
 
-        logger.debug({
+        queryLogger.debug({
           dateCutoff,
           rawIssuesCount: issues.length,
           // eslint-disable-next-line no-magic-numbers
           oldestIssueTime: moment(oldestIssueTime * 1000),
+          oldestIssue,
           currentBatchSize: issuesAfterDateCutoff.length
         }, 'Oldest issue time from current batch');
 
@@ -68,7 +70,7 @@ const query = graphQl => queryGithub({
         }
 
         startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
-        logger.debug({startCursor}, 'Setting start cursor');
+        queryLogger.debug({startCursor}, 'Setting start cursor');
       }
       return foundIssues;
     };
@@ -105,8 +107,10 @@ const query = graphQl => queryGithub({
         issues(
           first: 100, 
           before: ${startCursor ? `"${startCursor}"` : null}, 
-          labels: ["bug", "bug-unprioritized", "bug-low-priority", "bug-medium-priority", "bug-high-priority"], 
-          orderBy: {field: UPDATED_AT, direction: DESC}
+          labels: [
+            "bug", "bug-unprioritized", "bug-low-priority", "bug-medium-priority", "bug-high-priority", "prod-alert"
+          ], 
+          orderBy: {field: CREATED_AT, direction: DESC}
         ) {
           pageInfo {
             startCursor
