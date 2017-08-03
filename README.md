@@ -6,6 +6,8 @@ When making assessments about team velocity, these numbers should be taken with 
 
 ## Usage
 
+I built this with Node `v8.1.4`.
+
 ```
 # Ensure that deps are up to date
 yarn
