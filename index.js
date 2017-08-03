@@ -115,8 +115,8 @@ const query = graphQl => queryGithub({
   };
 
   const issuesPassedPerPerson = {
-    artem: commentsPassedForPerson('kierachell'),
-    alexis: commentsPassedForPerson('astewarttistatech')
+    alexis: commentsPassedForPerson('astewarttistatech'),
+    artem: commentsPassedForPerson('kierachell')
   };
 
   logger.info({issuesPassedPerPerson});
@@ -138,10 +138,10 @@ const query = graphQl => queryGithub({
 
   // eslint-disable-next-line no-console
   console.log(`
-Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
-${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues Approved by Alexis (count: ${issuesPassedPerPerson.alexis.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.alexis.issues)}
+Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
+${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
   `);
