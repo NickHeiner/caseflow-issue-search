@@ -22,88 +22,140 @@ const query = graphQl => queryGithub({
 
 (async() => {
   const getIssuesForRepo = async repo => {
-    const foundIssues = [];
-    let startCursor = null;
+    const getIssuesUntilTime = async issueQueryFn => {
+      const foundIssues = [];
+      let startCursor = null;
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const graphQlQuery = `
-        {
-          repository(owner: "department-of-veterans-affairs", name: "${repo}") {
-            validatedIssues: issues(
-              first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
-                field: UPDATED_AT
-                direction: DESC
-              }
-            ) {
-              pageInfo {
-                startCursor
-              }
-              edges {
-                node {
-                  updatedAt
-                  title
-                  resourcePath
-                  comments(first: 100) {
-                    nodes {
-                      bodyText
-                      author {
-                        login
-                      }
-                    }
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const graphQlQuery = `
+          {
+            repository(owner: "department-of-veterans-affairs", name: "${repo}") {
+              ${issueQueryFn(startCursor)}  
+            }
+          }
+        `;
+        logger.debug({graphQlQuery}, 'Making query');
+        const queryResult = await query(graphQlQuery);
+        logger.trace({resultData: queryResult[0].data});
+
+        // This may be cutting out a few issues erroneously by stopping a few days early,
+        // but overall I think it's close enough.
+
+        const issues = queryResult[0].data.repository.issues.edges;
+        const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
+        const issuesAfterDateCutoff = _.takeWhile(
+          issues,
+          edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
+        );
+
+        const oldestIssueTime = _(issues)
+          .map(edge => moment(edge.node.updatedAt).unix())
+          .max();
+
+        logger.debug({
+          dateCutoff,
+          rawIssuesCount: issues.length,
+          // eslint-disable-next-line no-magic-numbers
+          oldestIssueTime: moment(oldestIssueTime * 1000),
+          currentBatchSize: issuesAfterDateCutoff.length
+        }, 'Oldest issue time from current batch');
+
+        foundIssues.push(...issuesAfterDateCutoff);
+
+        if (issuesAfterDateCutoff.length < issues.length) {
+          break;
+        }
+
+        startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
+        logger.debug({startCursor}, 'Setting start cursor');
+      }
+      return foundIssues;
+    };
+
+    const [validatedIssues, bugReports] = await Promise.all([
+      getIssuesUntilTime(startCursor => `
+        issues(
+          first: 100, states: CLOSED, before: ${startCursor ? `"${startCursor}"` : null}, orderBy: {
+            field: UPDATED_AT
+            direction: DESC
+          }
+        ) {
+          pageInfo {
+            startCursor
+          }
+          edges {
+            node {
+              updatedAt
+              title
+              resourcePath
+              comments(first: 100) {
+                nodes {
+                  bodyText
+                  author {
+                    login
                   }
                 }
               }
             }
           }
         }
-      `;
-      logger.debug({graphQlQuery}, 'Making query');
-      const queryResult = await query(graphQlQuery);
+      `),
+      getIssuesUntilTime(startCursor => `
+        issues(
+          first: 100, 
+          before: ${startCursor ? `"${startCursor}"` : null}, 
+          labels: ["bug", "bug-unprioritized", "bug-low-priority", "bug-medium-priority", "bug-high-priority"], 
+          orderBy: {field: UPDATED_AT, direction: DESC}
+        ) {
+          pageInfo {
+            startCursor
+          }
+          edges {
+            node {
+              updatedAt
+              author {
+                login
+              }
+              resourcePath
+            }
+          }
+        }  
+      `)
+    ]);
 
-      // This may be cutting out a few issues erroneously by stopping a few days early,
-      // but overall I think it's close enough.
+    const relevantBugReports = _.filter(
+      bugReports, 
+      edge => _.includes(['astewarttistatech', 'kierachell'], edge.node.author.login)
+    );
 
-      const issues = queryResult[0].data.repository.validatedIssues.edges;
-      const dateCutoff = moment(process.env.DATE_CUTOFF || '2017-01-01');
-      const issuesAfterDateCutoff = _.takeWhile(
-        issues,
-        edge => moment(edge.node.updatedAt).isAfter(dateCutoff)
-      );
-
-      const oldestIssueTime = _(issues)
-        .map(edge => moment(edge.node.updatedAt).unix())
-        .max();
-
-      logger.debug({
-        dateCutoff,
-        rawIssuesCount: issues.length,
-        // eslint-disable-next-line no-magic-numbers
-        oldestIssueTime: moment(oldestIssueTime * 1000),
-        currentBatchSize: issuesAfterDateCutoff.length
-      }, 'Oldest issue time from current batch');
-
-      foundIssues.push(...issuesAfterDateCutoff);
-
-      if (issuesAfterDateCutoff.length < issues.length) {
-        break;
-      }
-
-      startCursor = queryResult[0].data.repository.validatedIssues.pageInfo.startCursor;
-      logger.debug({startCursor}, 'Setting start cursor');
-    }
-    return foundIssues;
+    return {
+      validatedIssues,
+      bugReports: relevantBugReports
+    };
   };
 
-  const foundIssues = _.flatten(await Promise.all(['caseflow', 'caseflow-efolder'].map(getIssuesForRepo)));
+  const foundIssues = _.flatten(
+    await Promise.all(['caseflow', 'caseflow-efolder'].map(getIssuesForRepo))
+  );
+  const allValidatedIssues = _(foundIssues).map('validatedIssues').flatten().value();
+  const allBugReports = _(foundIssues).map('bugReports').flatten().value();
 
-  logger.info({foundIssuesCount: foundIssues.length, sampleIssue: foundIssues[0]}, 'Got issues');
+  logger.info({
+    foundIssuesCount: {
+      validatedIssues: allValidatedIssues.length,
+      bugReports: allBugReports.length
+    }, 
+    sampleValidatedIssue: allValidatedIssues[0],
+    sampleBugReport: allBugReports[0]
+  }, 'Got issues');
 
-  const githubUrlOfIssues = issues => _.map(issues, issue => `https://github.com${issue.node.resourcePath}`);
+  const githubUrlOfIssue = issue => `https://github.com${issue.node.resourcePath}`;
+  const githubUrlOfIssues = issues => _.map(issues, githubUrlOfIssue);
 
   const commentsPassedForPerson = login => {
     const issues = _.filter(
-      foundIssues, 
+      allValidatedIssues, 
       issue => _.some(
         issue.node.comments.nodes, 
         comment => _.includes(comment.bodyText, 'PASSED') && comment.author.login === login
@@ -129,12 +181,24 @@ const query = graphQl => queryGithub({
     .flatten()
     .value();
 
-  const issuesPassedByNoOne = _.difference(githubUrlOfIssues(foundIssues), allIssuesPassed);
+  const issuesPassedByNoOne = _.difference(githubUrlOfIssues(allValidatedIssues), allIssuesPassed);
 
   logger.info({
     count: issuesPassedByNoOne.length,
     issues: issuesPassedByNoOne
   }, 'Issues passed by no one');
+
+  const bugReportsForPerson = login => _(allBugReports)
+    .filter(edge => edge.node.author.login === login)
+    .map(githubUrlOfIssue)
+    .value();
+
+  const bugReportsPerPerson = {
+    alexis: bugReportsForPerson('astewarttistatech'),
+    artem: bugReportsForPerson('kierachell')
+  };
+
+  logger.info(bugReportsPerPerson);
 
   const getStringSummaryOfIssues = issueUrls => issueUrls.join('\n');
 
@@ -146,5 +210,10 @@ Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
+
+Bug Reports from Alexis (count: ${bugReportsPerPerson.alexis.length})
+${getStringSummaryOfIssues(bugReportsPerPerson.alexis)}
+Bug Reports from Artem (count: ${bugReportsPerPerson.artem.length})
+${getStringSummaryOfIssues(bugReportsPerPerson.artem)}
   `);
 })();
