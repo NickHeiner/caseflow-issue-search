@@ -153,6 +153,7 @@
     "eslint": "^4.2.0",
     "github-graphql-client": "^1.0.0",
     "lodash": "^4.17.4",
+    "open": "^0.0.5",
     "pretty-ms": "^2.1.0"
   }
 }
