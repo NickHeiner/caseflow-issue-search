@@ -4,6 +4,7 @@ const logger = require('./logger');
 const githubGraphqlClient = require('github-graphql-client');
 const _ = require('lodash');
 const moment = require('moment');
+const open = require('open');
 
 const queryGithub = options => new Promise((resolve, reject) => {
   githubGraphqlClient(options, (err, ...rest) => {
@@ -145,4 +146,10 @@ ${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
   `);
+
+  if (process.env.OPEN) {
+    _(issuesPassedPerPerson.alexis.issues)
+      .concat(issuesPassedPerPerson.artem.issues)
+      .forEach(issueUrl => open(issueUrl));
+  }
 })();
