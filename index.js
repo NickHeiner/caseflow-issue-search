@@ -99,7 +99,8 @@ const query = graphQl => queryGithub({
 
   logger.info({foundIssuesCount: foundIssues.length, sampleIssue: foundIssues[0]}, 'Got issues');
 
-  const githubUrlOfIssues = issues => _.map(issues, issue => `https://github.com${issue.node.resourcePath}`);
+  const githubUrlOfIssue = issue => `https://github.com${issue.node.resourcePath}`;
+  const githubUrlOfIssues = issues => _.map(issues, githubUrlOfIssue);
 
   const commentsPassedForPerson = login => {
     const issues = _.filter(
@@ -111,6 +112,9 @@ const query = graphQl => queryGithub({
     );
     
     return {
+      dates: _(issues).map(
+        issue => [githubUrlOfIssue(issue), moment(issue.node.updatedAt).format('ll')]
+      ).fromPairs().value(),
       issues: githubUrlOfIssues(issues),
       count: issues.length
     };
@@ -143,13 +147,14 @@ const query = graphQl => queryGithub({
   }, 'Issues passed by all');
 
   const getStringSummaryOfIssues = issueUrls => issueUrls.join('\n');
+  const getDatedSummaryOfIssues = issues => _.map(issues.dates, (date, url) => `${url} (${date})`).join('\n');
 
   // eslint-disable-next-line no-console
   console.log(`
 Issues Approved by Alexis (count: ${issuesPassedPerPerson.alexis.count})
-${getStringSummaryOfIssues(issuesPassedPerPerson.alexis.issues)}
+${getDatedSummaryOfIssues(issuesPassedPerPerson.alexis)}
 Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
-${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
+${getDatedSummaryOfIssues(issuesPassedPerPerson.artem)}
 Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
 Issues passed by both (count: ${issuesPassedByAll.length})
