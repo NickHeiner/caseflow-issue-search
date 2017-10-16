@@ -130,11 +130,17 @@ const query = graphQl => queryGithub({
     .value();
 
   const issuesPassedByNoOne = _.difference(githubUrlOfIssues(foundIssues), allIssuesPassed);
+  const issuesPassedByAll = _.intersection(..._(issuesPassedPerPerson).values().map('issues').value());
 
   logger.info({
     count: issuesPassedByNoOne.length,
     issues: issuesPassedByNoOne
   }, 'Issues passed by no one');
+
+  logger.info({
+    count: issuesPassedByAll.length,
+    issues: issuesPassedByAll
+  }, 'Issues passed by all');
 
   const getStringSummaryOfIssues = issueUrls => issueUrls.join('\n');
 
@@ -146,6 +152,8 @@ Issues Approved by Artem (count: ${issuesPassedPerPerson.artem.count})
 ${getStringSummaryOfIssues(issuesPassedPerPerson.artem.issues)}
 Issues closed without being approved by either (count: ${issuesPassedByNoOne.length})
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
+Issues passed by both (count: ${issuesPassedByAll.length})
+${getStringSummaryOfIssues(issuesPassedByAll)}
   `);
 
   const openArg = process.env.OPEN;
@@ -154,6 +162,8 @@ ${getStringSummaryOfIssues(issuesPassedByNoOne)}
       _(issuesPassedPerPerson.alexis.issues)
         .concat(issuesPassedPerPerson.artem.issues)
         .forEach(issueUrl => open(issueUrl));
+    } else if (openArg === 'neither') {
+      issuesPassedByNoOne.forEach(issueUrl => open(issueUrl));
     } else {
       issuesPassedPerPerson[openArg].issues.forEach(issueUrl => open(issueUrl));
     }
