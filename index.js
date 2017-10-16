@@ -148,9 +148,14 @@ Issues closed without being approved by either (count: ${issuesPassedByNoOne.len
 ${getStringSummaryOfIssues(issuesPassedByNoOne)}
   `);
 
-  if (process.env.OPEN) {
-    _(issuesPassedPerPerson.alexis.issues)
-      .concat(issuesPassedPerPerson.artem.issues)
-      .forEach(issueUrl => open(issueUrl));
+  const openArg = process.env.OPEN;
+  if (openArg) {
+    if (openArg === 'true') {
+      _(issuesPassedPerPerson.alexis.issues)
+        .concat(issuesPassedPerPerson.artem.issues)
+        .forEach(issueUrl => open(issueUrl));
+    } else {
+      issuesPassedPerPerson[openArg].issues.forEach(issueUrl => open(issueUrl));
+    }
   }
 })();
