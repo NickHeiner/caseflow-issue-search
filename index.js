@@ -72,9 +72,10 @@ const query = graphQl => queryGithub({
 
       const oldestIssueTime = _(issues)
         .map(edge => moment(edge.node.updatedAt).unix())
-        .max();
+        .min();
 
       logger.debug({
+        repo,
         dateCutoff,
         rawIssuesCount: issues.length,
         // eslint-disable-next-line no-magic-numbers
@@ -84,12 +85,12 @@ const query = graphQl => queryGithub({
 
       foundIssues.push(...issuesAfterDateCutoff);
 
-      if (issuesAfterDateCutoff.length < issues.length) {
+      if (!issues.length || issuesAfterDateCutoff.length < issues.length) {
         break;
       }
 
       startCursor = queryResult[0].data.repository.issues.pageInfo.startCursor;
-      logger.debug({startCursor}, 'Setting start cursor');
+      logger.debug({repo, startCursor}, 'Setting start cursor');
     }
     return foundIssues;
   };
