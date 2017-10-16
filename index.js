@@ -5,6 +5,7 @@ const githubGraphqlClient = require('github-graphql-client');
 const _ = require('lodash');
 const moment = require('moment');
 const open = require('open');
+const chalk = require('chalk');
 
 const queryGithub = options => new Promise((resolve, reject) => {
   githubGraphqlClient(options, (err, ...rest) => {
@@ -147,7 +148,10 @@ const query = graphQl => queryGithub({
   }, 'Issues passed by all');
 
   const getStringSummaryOfIssues = issueUrls => issueUrls.join('\n');
-  const getDatedSummaryOfIssues = issues => _.map(issues.dates, (date, url) => `${url} (${date})`).join('\n');
+  const getDatedSummaryOfIssues = issues => _.map(
+    issues.dates, 
+    (date, url) => `${chalk.cyan(url)} ${chalk.gray(`(${date})`)}`
+  ).join('\n');
 
   // eslint-disable-next-line no-console
   console.log(`
